@@ -65,6 +65,21 @@ local function oklab_to_rgb(L,a,b)
 
 	return math.floor(r*255+0.5),math.floor(g*255+0.5),math.floor(bl*255+0.5)
 end
+
+local function shift_color(r,g,b,hueDeg,chromaMult,lightShift)
+	local L,a,bb = rgb_to_oklab(r,g,b)
+
+	-- to OKLCh polar form
+	local C = math.sqrt(a*a+bb*bb)
+	local h = math.atan(bb,a)
+
+	h = h+math.rad(hueDeg)
+	C = C*chromaMult
+	L = L+lightShift
+
+	a = C*math.cos(h)
+	bb = C*math.sin(h)
+end
 -- plugin entry
 
 function init(plugin)
