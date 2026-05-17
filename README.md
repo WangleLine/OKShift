@@ -2,6 +2,7 @@
 [OKLab](https://en.wikipedia.org/wiki/Oklab_color_space) hueshift extension for [Aseprite](https://github.com/aseprite/aseprite)
 
 See also:
+- [Hue Shifted Color Ramp](https://garmichael.itch.io/hue-shifted-color-ramp-aseprite-extension)
 - [AsepriteOkHsl](https://github.com/behreajj/AsepriteOkHsl)
 - [HSLuv Color Picker](https://community.aseprite.org/t/hsluv-color-picker/11048)
 
