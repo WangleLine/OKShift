@@ -79,7 +79,33 @@ local function shift_color(r,g,b,hueDeg,chromaMult,lightShift)
 
 	a = C*math.cos(h)
 	bb = C*math.sin(h)
+
 	return oklab_to_rgb(L,a,bb)
+end
+
+-- main
+
+local function process_rgb_image(image,celPos,sprite,useSel,hue,chroma,light)
+	local sel = sprite.selection
+	local pc = app.pixelColor
+
+	for it in image:pixels() do
+		local px = it()
+		local a = pc.rgbaA(px)
+		if a>0 then
+			local inSel = true
+			if useSel then
+				inSel = sel:contains(it.x+celPos.x,it.y+celPos.y)
+			end
+			if inSel then
+				local r = pc.rgbaR(px)
+				local g = pc.rgbaG(px)
+				local b = pc.rgbaB(px)
+				local nr,ng,nb = shift_color(r,g,b,hue,chroma,light)
+				it(pc.rgba(nr,ng,nb,a))
+			end
+		end
+	end
 end
 
 local function apply(sprite,hue,chroma,light,selOnly,allCels)
