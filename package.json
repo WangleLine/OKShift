@@ -1,0 +1,15 @@
+{
+	"name": "okshift",
+	"displayName": "OKShift",
+	"description": "Perceptually-uniform hue/chroma/lightness shift using OKLab color space. Unlike HSV/HSL/YIQ, hue rotations preserve apparent brightness.",
+	"version": "1.0.0",
+	"author": { "name": "WangleLine" },
+	"publisher": "WangleLine",
+	"license": "MIT",
+	"categories": [ "Scripts" ],
+	"contributes": {
+		"scripts": [
+			{ "path": "./okshift.lua" }
+		]
+	}
+}
