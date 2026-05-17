@@ -108,43 +108,44 @@ local function process_rgb_image(image,celPos,sprite,useSel,hue,chroma,light)
 	end
 end
 
-local function apply(sprite,hue,chroma,light,selOnly,allCels)
-	app.transaction("OKLab Hue Shift",function()
-		if sprite.colorMode==ColorMode.INDEXED then
-			local transparentIdx = sprite.transparentColor
-			for _,palette in ipairs(sprite.palettes) do
-				for i=0,#palette-1 do
-					if i~=transparentIdx then
-						local c = palette:getColor(i)
-						if c.alpha>0 then
-							local nr,ng,nb = shift_color(c.red,c.green,c.blue,hue,chroma,light)
-							palette:setColor(i,Color{r=nr,g=ng,b=nb,a=c.alpha})
-						end
+-- returns true if any sprite state was actually written (used to gate undo bookkeeping)
+local function apply_impl(sprite,hue,chroma,light,selOnly,allCels)
+	local wrote = false
+
+	if sprite.colorMode==ColorMode.INDEXED then
+		local transparentIdx = sprite.transparentColor
+		for _,palette in ipairs(sprite.palettes) do
+			for i=0,#palette-1 do
+				if i~=transparentIdx then
+					local c = palette:getColor(i)
+					if c.alpha>0 then
+						local nr,ng,nb = shift_color(c.red,c.green,c.blue,hue,chroma,light)
+						palette:setColor(i,Color{r=nr,g=ng,b=nb,a=c.alpha})
+						wrote = true
 					end
 				end
 			end
-		elseif sprite.colorMode==ColorMode.RGB then
-			local cels = {}
-			if allCels and #app.range.cels>0 then
-				for _,c in ipairs(app.range.cels) do
-					table.insert(cels,c)
-				end
-			elseif app.activeCel then
-				table.insert(cels,app.activeCel)
-			end
-
-			local useSel = selOnly and not sprite.selection.isEmpty
-			for _,cel in ipairs(cels) do
-				local img = cel.image:clone()
-				process_rgb_image(img,cel.position,sprite,useSel,hue,chroma,light)
-				cel.image = img
-			end
-		else
-			app.alert("Grayscale mode has no hue to shift :(")
 		end
-	end)
+	elseif sprite.colorMode==ColorMode.RGB then
+		local cels = {}
+		if allCels and #app.range.cels>0 then
+			for _,c in ipairs(app.range.cels) do
+				table.insert(cels,c)
+			end
+		elseif app.activeCel then
+			table.insert(cels,app.activeCel)
+		end
 
-	app.refresh()
+		local useSel = selOnly and not sprite.selection.isEmpty
+		for _,cel in ipairs(cels) do
+			local img = cel.image:clone()
+			process_rgb_image(img,cel.position,sprite,useSel,hue,chroma,light)
+			cel.image = img
+			wrote = true
+		end
+	end
+
+	return wrote
 end
 
 -- ui
@@ -156,46 +157,122 @@ local function show_dialog(plugin)
 		return
 	end
 
-	-- restore last-used settings from plugin prefs
+	if sprite.colorMode==ColorMode.GRAY then
+		app.alert("Grayscale mode has no hue to shift :(")
+		return
+	end
+
+	-- restore last-used settings
 	local prefs = plugin.preferences
 	if prefs.hue==nil then prefs.hue = 0 end
 	if prefs.chroma==nil then prefs.chroma = 100 end
 	if prefs.light==nil then prefs.light = 0 end
 	if prefs.selOnly==nil then prefs.selOnly = true end
 	if prefs.allCels==nil then prefs.allCels = false end
+	if prefs.livePreview==nil then prefs.livePreview = true end
 
-	local dlg = Dialog{title="OKLab Hue Shift"}
-	dlg:slider{id="hue",label="Hue (°)",min=-180,max=180,value=prefs.hue}
-	dlg:slider{id="chroma",label="Chroma (%)",min=0,max=200,value=prefs.chroma}
-	dlg:slider{id="light",label="Lightness ±",min=-50,max=50,value=prefs.light}
+	local dlg
+	-- true when we have a preview transaction sitting on the undo stack waiting to be
+	-- either committed (OK) or undone (Cancel / next preview).
+	local previewing = false
+
+	local function clear_preview()
+		if previewing then
+			app.command.Undo()
+			previewing = false
+			app.refresh()
+		end
+	end
+
+	local function do_preview()
+		-- always rewind the previous preview first; each preview is fresh from original
+		clear_preview()
+
+		local d = dlg.data
+		local hue = d.hue
+		local chroma = d.chroma/100
+		local light = d.light/100
+
+		-- skip identity transform: nothing to show, and crucially no transaction to undo later
+		if hue==0 and chroma==1 and light==0 then
+			return
+		end
+
+		local wrote = false
+		app.transaction("OKShift",function()
+			wrote = apply_impl(sprite,hue,chroma,light,d.selOnly,d.allCels)
+		end)
+
+		-- only flag as previewing if we know the transaction actually wrote something,
+		-- otherwise the next app.command.Undo() would undo a user action instead of ours
+		if wrote then
+			previewing = true
+		end
+		app.refresh()
+	end
+
+	local function on_change()
+		if dlg.data.livePreview then
+			do_preview()
+		else
+			clear_preview()
+		end
+	end
+
+	dlg = Dialog{title="OKShift"}
+	dlg:slider{id="hue",label="Hue (°)",min=-180,max=180,value=prefs.hue,onchange=on_change}
+	dlg:slider{id="chroma",label="Chroma (%)",min=0,max=200,value=prefs.chroma,onchange=on_change}
+	dlg:slider{id="light",label="Lightness ±",min=-50,max=50,value=prefs.light,onchange=on_change}
 	dlg:separator()
-	dlg:check{id="selOnly",label="Selection only",selected=prefs.selOnly}
-	dlg:check{id="allCels",label="All cels in timeline range",selected=prefs.allCels}
+	dlg:check{id="selOnly",label="Selection only",selected=prefs.selOnly,onchange=on_change}
+	dlg:check{id="allCels",label="All cels in timeline range",selected=prefs.allCels,onchange=on_change}
+	dlg:separator()
+	dlg:check{id="livePreview",label="Live preview (very laggy at the moment)",selected=prefs.livePreview,onchange=on_change}
 	dlg:separator()
 	dlg:button{id="ok",text="Apply",focus=true}
 	dlg:button{id="cancel",text="Cancel"}
 
+	-- show initial preview reflecting starting slider values
+	if prefs.livePreview then
+		do_preview()
+	end
+
 	dlg:show{wait=true}
-	if not dlg.data.ok then return end
 
-	local d = dlg.data
+	if dlg.data.ok then
+		-- persist settings for next session
+		prefs.hue = dlg.data.hue
+		prefs.chroma = dlg.data.chroma
+		prefs.light = dlg.data.light
+		prefs.selOnly = dlg.data.selOnly
+		prefs.allCels = dlg.data.allCels
+		prefs.livePreview = dlg.data.livePreview
 
-	-- persist
-	prefs.hue = d.hue
-	prefs.chroma = d.chroma
-	prefs.light = d.light
-	prefs.selOnly = d.selOnly
-	prefs.allCels = d.allCels
-
-	apply(sprite,d.hue,d.chroma/100,d.light/100,d.selOnly,d.allCels)
+		-- if live preview was off, no preview transaction was ever made; apply now
+		if not dlg.data.livePreview then
+			local hue = dlg.data.hue
+			local chroma = dlg.data.chroma/100
+			local light = dlg.data.light/100
+			if not (hue==0 and chroma==1 and light==0) then
+				app.transaction("OKShift",function()
+					apply_impl(sprite,hue,chroma,light,dlg.data.selOnly,dlg.data.allCels)
+				end)
+				app.refresh()
+			end
+		end
+		-- else: the last preview is the final state, already recorded as one undo entry
+	else
+		-- cancelled (Cancel button or X): rewind the active preview if any
+		clear_preview()
+	end
 end
 
 -- plugin entry
 
 function init(plugin)
 	plugin:newCommand{
-		id="OklabHueShift",
-		title="OKLab Hue Shift",
+		id="OKShift",
+		title="OKShift",
 		group="edit_fx",
 		onclick=function()
 			show_dialog(plugin)
