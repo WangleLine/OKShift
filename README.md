@@ -4,7 +4,6 @@
 See also:
 - [Hue Shifted Color Ramp](https://garmichael.itch.io/hue-shifted-color-ramp-aseprite-extension)
 - [AsepriteOkHsl](https://github.com/behreajj/AsepriteOkHsl)
-- [HSLuv Color Picker](https://community.aseprite.org/t/hsluv-color-picker/11048)
 
 Further reading/color conversion maths taken from:
 - https://observablehq.com/@coulterg/oklab-oklch-color-functions
