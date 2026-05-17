@@ -79,7 +79,91 @@ local function shift_color(r,g,b,hueDeg,chromaMult,lightShift)
 
 	a = C*math.cos(h)
 	bb = C*math.sin(h)
+	return oklab_to_rgb(L,a,bb)
 end
+
+local function apply(sprite,hue,chroma,light,selOnly,allCels)
+	app.transaction("OKLab Hue Shift",function()
+		if sprite.colorMode==ColorMode.INDEXED then
+			local transparentIdx = sprite.transparentColor
+			for _,palette in ipairs(sprite.palettes) do
+				for i=0,#palette-1 do
+					if i~=transparentIdx then
+						local c = palette:getColor(i)
+						if c.alpha>0 then
+							local nr,ng,nb = shift_color(c.red,c.green,c.blue,hue,chroma,light)
+							palette:setColor(i,Color{r=nr,g=ng,b=nb,a=c.alpha})
+						end
+					end
+				end
+			end
+		elseif sprite.colorMode==ColorMode.RGB then
+			local cels = {}
+			if allCels and #app.range.cels>0 then
+				for _,c in ipairs(app.range.cels) do
+					table.insert(cels,c)
+				end
+			elseif app.activeCel then
+				table.insert(cels,app.activeCel)
+			end
+
+			local useSel = selOnly and not sprite.selection.isEmpty
+			for _,cel in ipairs(cels) do
+				local img = cel.image:clone()
+				process_rgb_image(img,cel.position,sprite,useSel,hue,chroma,light)
+				cel.image = img
+			end
+		else
+			app.alert("Grayscale mode has no hue to shift :(")
+		end
+	end)
+
+	app.refresh()
+end
+
+-- ui
+
+local function show_dialog(plugin)
+	local sprite = app.activeSprite
+	if not sprite then
+		app.alert("No active sprite!")
+		return
+	end
+
+	-- restore last-used settings from plugin prefs
+	local prefs = plugin.preferences
+	if prefs.hue==nil then prefs.hue = 0 end
+	if prefs.chroma==nil then prefs.chroma = 100 end
+	if prefs.light==nil then prefs.light = 0 end
+	if prefs.selOnly==nil then prefs.selOnly = true end
+	if prefs.allCels==nil then prefs.allCels = false end
+
+	local dlg = Dialog{title="OKLab Hue Shift"}
+	dlg:slider{id="hue",label="Hue (°)",min=-180,max=180,value=prefs.hue}
+	dlg:slider{id="chroma",label="Chroma (%)",min=0,max=200,value=prefs.chroma}
+	dlg:slider{id="light",label="Lightness ±",min=-50,max=50,value=prefs.light}
+	dlg:separator()
+	dlg:check{id="selOnly",label="Selection only",selected=prefs.selOnly}
+	dlg:check{id="allCels",label="All cels in timeline range",selected=prefs.allCels}
+	dlg:separator()
+	dlg:button{id="ok",text="Apply",focus=true}
+	dlg:button{id="cancel",text="Cancel"}
+
+	dlg:show{wait=true}
+	if not dlg.data.ok then return end
+
+	local d = dlg.data
+
+	-- persist
+	prefs.hue = d.hue
+	prefs.chroma = d.chroma
+	prefs.light = d.light
+	prefs.selOnly = d.selOnly
+	prefs.allCels = d.allCels
+
+	apply(sprite,d.hue,d.chroma/100,d.light/100,d.selOnly,d.allCels)
+end
+
 -- plugin entry
 
 function init(plugin)
