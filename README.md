@@ -1,5 +1,17 @@
 # OKShift
-[OKLab](https://en.wikipedia.org/wiki/Oklab_color_space) hueshift extension for [Aseprite](https://github.com/aseprite/aseprite)
+[OKLab](https://en.wikipedia.org/wiki/Oklab_color_space) perceptual brightness-preserving hueshift extension for [Aseprite](https://github.com/aseprite/aseprite)
+
+Aseprite Native Hueshift:
+<img
+  src="https://github.com/WangleLine/OKShift/blob/main/docs/native_hueshift.webp"
+  title="Aseprite Native Hueshift"
+  style="display: inline-block">
+
+OKShift Hue Shift:
+<img
+  src="https://github.com/WangleLine/OKShift/blob/main/docs/oklab_hueshift.webp"
+  title="Aseprite Native Hueshift"
+  style="display: inline-block">
 
 See also:
 - [Hue Shifted Color Ramp](https://garmichael.itch.io/hue-shifted-color-ramp-aseprite-extension)
