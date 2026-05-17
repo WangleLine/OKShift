@@ -1,3 +1,10 @@
+-- OKShift for Aseprite
+
+-- OKLab L is perceptual lightness, so rotating hue in OKLCh keeps perceptual brightness.
+-- way more swag than HSV/HSL/YIQ.
+
+-- color math
+
 local function srgb_to_linear(c)
 	if c<=0.04045 then return c/12.92 end
 	return ((c+0.055)/1.055)^2.4
@@ -8,6 +15,7 @@ local function linear_to_srgb(c)
 	return 1.055*(c^(1/2.4))-0.055
 end
 
+-- stands for cube root
 local function cbrt(x)
 	-- lua's ^ doesn't like negative bases with fractional exponents, gives NaNs for some reason
 	if x<0 then return -((-x)^(1/3)) end
@@ -57,6 +65,8 @@ local function oklab_to_rgb(L,a,b)
 
 	return math.floor(r*255+0.5),math.floor(g*255+0.5),math.floor(bl*255+0.5)
 end
+-- plugin entry
+
 function init(plugin)
 	plugin:newCommand{
 		id="OklabHueShift",
